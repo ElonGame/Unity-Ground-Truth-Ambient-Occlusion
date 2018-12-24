@@ -12,6 +12,28 @@ half GDFG(half NoV, half NoL, half a) {
 }
 
 //////////////////////////Environment LUT 
+half Standard_Burley(half Roughness, half NoV) {
+    half3 V;
+    V.x = sqrt(1 - NoV * NoV);
+    V.y = 0;
+    V.z = NoV;
+
+    half r = 0; 
+	const uint NumSamples = 64;
+    for (uint i = 0; i < NumSamples; i++) {
+        half2 E = Hammersley(i, NumSamples); 
+        half3 H = ImportanceSampleLambert(E).rgb;
+        half3 L = 2 * dot(V, H) * H - V;
+
+        half NoL = saturate(L.z);
+        half LoH = saturate(dot(L, H));
+
+        half Diffuse = Diffuse_Burley_NoPi(LoH, NoL, NoV, Roughness);
+        r += Diffuse;
+    }
+    return r / NumSamples;
+}
+
 half2 Standard_Karis(half Roughness, half NoV) {
     half3 V;
     V.x = sqrt(1 - NoV * NoV);
@@ -22,7 +44,7 @@ half2 Standard_Karis(half Roughness, half NoV) {
 	const uint NumSamples = 64;
     for (uint i = 0; i < NumSamples; i++) {
         half2 E = Hammersley(i, NumSamples); 
-        half3 H = ImportanceSampleGGX(E, Roughness).xyz;
+        half3 H = ImportanceSampleGGX(E, Roughness).rgb;
         half3 L = 2 * dot(V, H) * H - V;
 
         half VoH = saturate(dot(V, H));
@@ -95,7 +117,7 @@ half3 ImageBasedLighting_Hair(half3 V, float3 N, float3 specularColor, float Rou
 	UNITY_LOOP
 	for( uint i = 0; i < NumSamples; i++ ) {
 		float2 E = Hammersley(i, NumSamples);
-		float3 L = UniformSampleSphere(E).xyz;
+		float3 L = UniformSampleSphere(E).rgb;
 		{
 			//float3 SampleColor = AmbientCubemap.SampleLevel(AmbientCubemapSampler, L, 0 .rgb);
 
@@ -114,7 +136,7 @@ half3 ImageBasedLighting_Hair(half3 V, float3 N, float3 specularColor, float Rou
 
 //////////Enviornment BRDF
 float3 PreintegratedGF_LUT(sampler2D PreintegratedLUT, float3 SpecularColor, float Roughness, float NoV) {
-	float2 AB = tex2Dlod(PreintegratedLUT, float4(clamp(Roughness, 0.001, 0.999), NoV, 0, 0));
+	float2 AB = tex2Dlod(PreintegratedLUT, float4(clamp(Roughness, 0.001, 0.999), NoV, 0, 0)).rg;
 	return SpecularColor * AB.x + saturate(50 * SpecularColor.g) * AB.y;
 }
 
