@@ -1,7 +1,7 @@
 Shader "Hidden/GroundTruthAmbientOcclusion"
 {
 	CGINCLUDE
-		 #include "GTAO_Pass.cginc"
+		#include "GTAO_Pass.cginc"
 	ENDCG
 
 	SubShader
