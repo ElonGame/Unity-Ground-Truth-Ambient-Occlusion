@@ -1,4 +1,4 @@
-﻿#include "GTAO_Common.cginc"
+#include "GTAO_Common.cginc"
 
 //////Resolve Pass
 void ResolveGTAO_frag(PixelInput IN, out half2 AO : SV_Target0, out half3 BentNormal : SV_Target1)
@@ -45,7 +45,7 @@ half2 SpatialGTAO_Y_frag(PixelInput IN) : SV_Target
 //////Temporal filter
 half4 TemporalGTAO_frag(PixelInput IN) : SV_Target
 {
-	half2 uv = IN.uv.xy; 
+	half2 uv = IN.uv.xy;
 	half2 velocity = tex2D(_CameraMotionVectorsTexture, uv);
 
 	half4 filterColor = 0;
@@ -55,13 +55,10 @@ half4 TemporalGTAO_frag(PixelInput IN) : SV_Target
 	half4 currColor = filterColor;
 	half4 lastColor = tex2D(_PrevRT, uv - velocity);
 	lastColor = clamp(lastColor, minColor, maxColor);
-	if (uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1)
-	{
-		lastColor = filterColor;
-	}
-	half weight = saturate(clamp(_AO_TemporalResponse, 0, 0.98) * (1 - length(velocity) * 8));
 
+	half weight = saturate(clamp(_AO_TemporalResponse, 0, 0.98) * (1 - length(velocity) * 8));
 	half4 temporalColor = lerp(currColor, lastColor, weight);
+
 	return temporalColor;
 }
 
@@ -123,63 +120,4 @@ half4 DeBugBentNormal_frag(PixelInput IN) : SV_Target
 {
 	half2 uv = IN.uv.xy;
 	return half4(tex2D(_BentNormal_Texture, uv).rgb * 0.5 + 0.5, 1);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//////Combien Reflection Color
-half4 CombienGTRO_frag(PixelInput IN) : SV_Target
-{
-	half2 uv = IN.uv.xy;
-	half depth = tex2D(_CameraDepthTexture, uv).r;
-	half4 sceneColor = tex2D(_AO_Scene_Color, uv);
-	half4 specular = tex2D(_CameraGBufferTexture1, uv);
-	half roughness = 1 - specular.a;
-
-	half4 worldPos = mul(_Inverse_View_ProjectionMatrix, half4(half3(uv * 2 - 1, depth), 1));
-	worldPos.xyz /= worldPos.w;
-
-	half3 worldNormal = tex2D(_CameraGBufferTexture2, uv).rgb * 2 - 1;
-	half4 bentNormal = tex2D(_CurrRT, uv);
-
-	//////Reflection Occlusion
-	half3 viewVector = normalize(worldPos.xyz - _WorldSpaceCameraPos.rgb);
-	half3 reflectionDir = reflect(viewVector, worldNormal);
-
-	half4 relfectionColor = tex2D(_CameraReflectionsTexture, uv);
-	half groundTruth_RO = ReflectionOcclusion(bentNormal.rgb, reflectionDir, roughness, 0.5);
-
-	return relfectionColor * groundTruth_RO;
 }
