@@ -1,13 +1,13 @@
 #include "UnityCG.cginc"
 #include "Shader_Include/Include_HLSL.hlsl"
 
-#define KERNEL_RADIUS 8
+#define BLUR_RADIUS 8
 
 int _AO_MultiBounce;
 half _AO_DirSampler, _AO_SliceSampler, _AO_Intensity, _AO_Radius, _AO_Power, _AO_Sharpeness, _AO_TemporalScale, _AO_TemporalResponse, _AO_HalfProjScale, _AO_TemporalOffsets, _AO_TemporalDirections;
 half2 _AO_FadeParams;
 half4	_AO_UVToView, _AO_RT_TexelSize, _AO_FadeValues;
-half4x4	_WorldToCameraMatrix, _CameraToWorldMatrix, _ProjectionMatrix, _LastFrameViewProjectionMatrix, _View_ProjectionMatrix, _Inverse_View_ProjectionMatrix;
+half4x4	_WorldToCameraMatrix, _CameraToWorldMatrix, _Inverse_View_ProjectionMatrix;
 sampler2D _AO_Scene_Color, _CameraGBufferTexture0, _CameraGBufferTexture1, _CameraGBufferTexture2, _CameraReflectionsTexture, _CameraMotionVectorsTexture, _CameraDepthTexture, _CameraDepthNormalsTexture, _BentNormal_Texture, _GTAO_Texture, _GTAO_Spatial_Texture, _PrevRT, _CurrRT;
 
 struct VertexInput
@@ -31,13 +31,10 @@ PixelInput vert(VertexInput v)
 }
 
 //---//---//----//----//-------//----//----//----//-----//----//-----//----//----MultiBounce & ReflectionOcclusion//---//---//----//----//-------//----//----//----//-----//----//-----//----//----
-inline float ApproximateConeConeIntersection(float ArcLength0, float ArcLength1, float AngleBetweenCones)
+inline float ConeConeIntersection(float ArcLength0, float ArcLength1, float AngleBetweenCones)
 {
 	float AngleDifference = abs(ArcLength0 - ArcLength1);
-
-	float Intersection = smoothstep(0, 1, 1 - saturate((AngleBetweenCones - AngleDifference) / (ArcLength0 + ArcLength1 - AngleDifference)));
-
-	return Intersection;
+	return smoothstep(0, 1, 1 - saturate((AngleBetweenCones - AngleDifference) / (ArcLength0 + ArcLength1 - AngleDifference)));
 }
 
 inline half ReflectionOcclusion(half3 BentNormal, half3 ReflectionVector, half Roughness, half OcclusionStrength)
@@ -45,11 +42,10 @@ inline half ReflectionOcclusion(half3 BentNormal, half3 ReflectionVector, half R
 	half BentNormalLength = length(BentNormal);
 	half ReflectionConeAngle = max(Roughness, 0.1) * PI;
 	half UnoccludedAngle = BentNormalLength * PI * OcclusionStrength;
-
 	half AngleBetween = acos(dot(BentNormal, ReflectionVector) / max(BentNormalLength, 0.001));
-	half ReflectionOcclusion = ApproximateConeConeIntersection(ReflectionConeAngle, UnoccludedAngle, AngleBetween);
-	ReflectionOcclusion = lerp(0, ReflectionOcclusion, saturate((UnoccludedAngle - 0.1) / 0.2));
-	return ReflectionOcclusion;
+
+	half ReflectionOcclusion = ConeConeIntersection(ReflectionConeAngle, UnoccludedAngle, AngleBetween);
+	return lerp(0, ReflectionOcclusion, saturate((UnoccludedAngle - 0.1) / 0.2));
 }
 
 inline half ReflectionOcclusion_Approch(half NoV, half Roughness, half AO)
@@ -67,14 +63,14 @@ inline half3 MultiBounce(half AO, half3 Albedo)
 
 
 //---//---//----//----//-------//----//----//----//-----//----//-----//----//----BilateralBlur//---//---//----//----//-------//----//----//----//-----//----//-----//----//----
-inline void FetchAoAndDepth(float2 uv, inout float ao, inout float depth) {
+inline void GetAo_Depth(float2 uv, inout float ao, inout float depth) {
 	float2 aod = tex2Dlod(_GTAO_Texture, float4(uv, 0, 0)).rga;
 	ao = aod.r;
 	depth = aod.g;
 }
 
 inline float CrossBilateralWeight(float r, float d, float d0) {
-	const float BlurSigma = (float)KERNEL_RADIUS * 0.5;
+	const float BlurSigma = (float)BLUR_RADIUS * 0.5;
 	const float BlurFalloff = 1 / (2 * BlurSigma * BlurSigma);
 
     float dz = (d0 - d) * _ProjectionParams.z * _AO_Sharpeness;
@@ -93,16 +89,16 @@ inline void ProcessRadius(float2 uv0, float2 deltaUV, float d0, inout float tota
 	float r = 1;
 
 	UNITY_UNROLL
-	for (; r <= KERNEL_RADIUS / 2; r += 1) {
+	for (; r <= BLUR_RADIUS / 2; r += 1) {
 		uv = uv0 + r * deltaUV;
-		FetchAoAndDepth(uv, ao, z);
+		GetAo_Depth(uv, ao, z);
 		ProcessSample(float2(ao, z), r, d0, totalAO, totalW);
 	}
 
 	UNITY_UNROLL
-	for (; r <= KERNEL_RADIUS; r += 2) {
+	for (; r <= BLUR_RADIUS; r += 2) {
 		uv = uv0 + (r + 0.5) * deltaUV;
-		FetchAoAndDepth(uv, ao, z);
+		GetAo_Depth(uv, ao, z);
 		ProcessSample(float2(ao, z), r, d0, totalAO, totalW);
 	}
 		
@@ -111,7 +107,7 @@ inline void ProcessRadius(float2 uv0, float2 deltaUV, float d0, inout float tota
 inline float2 BilateralBlur(float2 uv0, float2 deltaUV)
 {
 	float totalAO, depth;
-	FetchAoAndDepth(uv0, totalAO, depth);
+	GetAo_Depth(uv0, totalAO, depth);
 	float totalW = 1;
 		
 	ProcessRadius(uv0, -deltaUV, depth, totalAO, totalW);
@@ -176,67 +172,59 @@ half4 GTAO(half2 uv, int NumCircle, int NumSlice, inout half Depth)
 	half radius = radius_thickness.x;
 	half thickness = radius_thickness.y;
 
-	half stepRadius = max(min((radius * _AO_HalfProjScale) / vPos.b, 512), (half)NumSlice);
-	stepRadius /= ((half)NumSlice + 1);
+	half stepRadius = (max(min((radius * _AO_HalfProjScale) / vPos.b, 512), (half)NumSlice)) / ((half)NumSlice + 1);
+	half noiseOffset = frac(GTAO_Offsets(uv) + _AO_TemporalOffsets);
+	half noiseDirection = GTAO_Noise(uv * _AO_RT_TexelSize.zw) + _AO_TemporalDirections;
 
-	half noiseOffset = GTAO_Offsets(uv);
-	half noiseDirection = GTAO_Noise(uv * _AO_RT_TexelSize.zw);
-
-	half initialRayStep = frac(noiseOffset + _AO_TemporalOffsets);
-
-	half Occlusion, angle, bentAngle, wallDarkeningCorrection, projLength, n, cos_n;
-	half2 slideDir_TexelSize, h, H, falloff, uvOffset, dsdt, dsdtLength;
-	half3 sliceDir, ds, dt, planeNormal, tangent, projectedNormal, BentNormal;
+	half Occlusion, angle,BentAngle, wallDarkeningCorrection, sliceLength, n, cos_n;
+	half2 slideDir_TexelSize, h, H, falloff, uvOffset, h1h2, h1h2Length;
+	half3 sliceDir, h1, h2, planeNormal, planeTangent, sliceNormal, BentNormal;
 	half4 uvSlice;
 	
-	if (tex2D(_CameraDepthTexture, uv).r <= 1e-7)
-	{
-		return 1;
-	}
+	if (tex2D(_CameraDepthTexture, uv).r <= 1e-7) return 1;
 
 	UNITY_LOOP
 	for (int i = 0; i < NumCircle; i++)
 	{
-		angle = (i + noiseDirection + _AO_TemporalDirections) * (UNITY_PI / (half)NumCircle);
+		angle = (i + noiseDirection) * (UNITY_PI / (half)NumCircle);
 		sliceDir = half3(half2(cos(angle), sin(angle)), 0);
-		slideDir_TexelSize = sliceDir.xy * _AO_RT_TexelSize.xy;
+
+		planeNormal = normalize(cross(sliceDir, viewDir));
+		planeTangent = cross(viewDir, planeNormal);
+		sliceNormal = viewNormal - planeNormal * dot(viewNormal, planeNormal);
+		sliceLength = length(sliceNormal);
+
+		cos_n = clamp(dot(normalize(sliceNormal), viewDir), -1, 1);
+		n = -sign(dot(sliceNormal, planeTangent)) * acos(cos_n);
 		h = -1;
 
 		UNITY_LOOP
 		for (int j = 0; j < NumSlice; j++)
 		{
-			uvOffset = slideDir_TexelSize * max(stepRadius * (j + initialRayStep), 1 + j);
+			uvOffset = (sliceDir.xy * _AO_RT_TexelSize.xy) * max(stepRadius * (j + noiseOffset), 1 + j);
 			uvSlice = uv.xyxy + float4(uvOffset.xy, -uvOffset);
 
-			ds = GetPosition(uvSlice.xy) - vPos;
-			dt = GetPosition(uvSlice.zw) - vPos;
+			h1 = GetPosition(uvSlice.xy) - vPos;
+			h2 = GetPosition(uvSlice.zw) - vPos;
 
-			dsdt = half2(dot(ds, ds), dot(dt, dt));
-			dsdtLength = rsqrt(dsdt);
+			h1h2 = half2(dot(h1, h1), dot(h2, h2));
+			h1h2Length = rsqrt(h1h2);
 
-			falloff = saturate(dsdt.xy * (2 / pow2(radius)));
+			falloff = saturate(h1h2 * (2 / pow2(radius)));
 
-			H = half2(dot(ds, viewDir), dot(dt, viewDir)) * dsdtLength;
+			H = half2(dot(h1, viewDir), dot(h2, viewDir)) * h1h2Length;
 			h.xy = (H.xy > h.xy) ? lerp(H, h, falloff) : lerp(H.xy, h.xy, thickness);
 		}
-
-		planeNormal = normalize(cross(sliceDir, viewDir));
-		tangent = cross(viewDir, planeNormal);
-		projectedNormal = viewNormal - planeNormal * dot(viewNormal, planeNormal);
-		projLength = length(projectedNormal);
-
-		cos_n = clamp(dot(normalize(projectedNormal), viewDir), -1, 1);
-		n = -sign(dot(projectedNormal, tangent)) * acos(cos_n);
 
 		h = acos(clamp(h, -1, 1));
 		h.x = n + max(-h.x - n, -UNITY_HALF_PI);
 		h.y = n + min(h.y - n, UNITY_HALF_PI);
 
-		bentAngle = (h.x + h.y) * 0.5;
+		BentAngle = (h.x + h.y) * 0.5;
+		BentNormal += viewDir * cos(BentAngle) - planeTangent * sin(BentAngle);
 
-		BentNormal += viewDir * cos(bentAngle) - tangent * sin(bentAngle);
-		Occlusion += projLength * IntegrateArc_CosWeight(h, n); 			
-		//Occlusion += projLength * IntegrateArc_UniformWeight(h);			
+		Occlusion += sliceLength * IntegrateArc_CosWeight(h, n); 			
+		//Occlusion += sliceLength * IntegrateArc_UniformWeight(h);			
 	}
 
 	BentNormal = normalize(normalize(BentNormal) - viewDir * 0.5);
