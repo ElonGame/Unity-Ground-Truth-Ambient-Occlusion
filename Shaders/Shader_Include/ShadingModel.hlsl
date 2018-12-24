@@ -5,7 +5,7 @@
 
 half3 Defult_Lit(BSDFContext LightData, half3 Energy, half3 AlbedoColor, half3 SpecularColor, half Roughness, half Occlusion)
 {
-    half3 Diffuse = Diffuse_Burley_Normalize(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
+    half3 Diffuse = Diffuse_Burley(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
 
     half pbr_GGX = D_GGX(LightData.NoH, Roughness);     
     half pbr_Vis = Vis_SmithGGXCorrelated(LightData.NoL, LightData.NoV, Roughness); 
@@ -18,7 +18,7 @@ half3 Defult_Lit(BSDFContext LightData, half3 Energy, half3 AlbedoColor, half3 S
 
 half3 ClearCoat_Lit(BSDFContext LightData, half3 Energy, half3 AlbedoColor, half3 SpecularColor, half ClearCoat, half ClearCoat_Roughness, half Roughness, half Occlusion)
 {
-	half3 Diffuse = Diffuse_Burley_Normalize(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
+	half3 Diffuse = Diffuse_Burley(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
 
 	half F0 = pow5(1 - LightData.VoH);
 
@@ -39,7 +39,7 @@ half3 ClearCoat_Lit(BSDFContext LightData, half3 Energy, half3 AlbedoColor, half
 
 half3 Cloth_Cotton(BSDFContext LightData, half3 Energy, half3 AlbedoColor, half3 SpecularColor, half Roughness, half Occlusion)
 {
-    half3 Diffuse = Diffuse_Burley_Normalize(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
+    half3 Diffuse = Diffuse_Burley(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
     Diffuse *= (saturate(LightData.NoL + 0.5) / 2.25) * (saturate(AlbedoColor + LightData.NoL));
 
     half pbr_InvGGX = D_InverseGGX(LightData.NoH, Roughness);      
@@ -54,7 +54,7 @@ half3 Cloth_Cotton(BSDFContext LightData, half3 Energy, half3 AlbedoColor, half3
 half3 Cloth_Silk(BSDFContext LightData, AnisoBSDFContext AnisoLightContext, half3 Energy, half3 AlbedoColor, half3 SpecularColor, half Roughness, half RoughnessT, half RoughnessB, half Occlusion)
 {
     
-    half3 Diffuse = Diffuse_Burley_Normalize(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
+    half3 Diffuse = Diffuse_Burley(LightData.LoH, LightData.NoL, LightData.NoV, AlbedoColor, Roughness);
 
     half pbr_AnisoGGX = D_AnisotropyGGX(AnisoLightContext.ToH, AnisoLightContext.BoH, LightData.NoH, RoughnessT, RoughnessB);
     half pbr_Vis = Vis_AnisotropyGGX(AnisoLightContext.ToV, AnisoLightContext.BoV, LightData.NoV, AnisoLightContext.ToL, AnisoLightContext.BoL, LightData.NoL, RoughnessT, RoughnessB);
