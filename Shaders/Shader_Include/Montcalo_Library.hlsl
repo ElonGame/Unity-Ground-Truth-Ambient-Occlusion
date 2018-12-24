@@ -116,6 +116,11 @@ float4 CosineSampleHemisphere(float2 E) {
 	return float4(H, PDF);
 }
 
+float4 CosineSampleHemisphere(float2 E, float3 Normal) {
+	float4 Sampler = CosineSampleHemisphere(E);
+	return float4(normalize(Normal + Sampler.rgb), Sampler.a);
+}
+
 float4 UniformSampleCone(float2 E, float CosThetaMax) {
 	float Phi = 2 * PI * E.x;
 	float CosTheta = lerp(CosThetaMax, 1, E.y);
@@ -128,6 +133,16 @@ float4 UniformSampleCone(float2 E, float CosThetaMax) {
 
 	float PDF = 1.0 / (2 * PI * (1 - CosThetaMax));
 	return float4(L, PDF);
+}
+
+
+
+
+
+float4 ImportanceSampleLambert(float2 E)
+{
+    float3 L = CosineSampleHemisphere(E).rgb;
+	return float4(L, 1);
 }
 
 float4 ImportanceSampleBlinn(float2 E, float Roughness) {
