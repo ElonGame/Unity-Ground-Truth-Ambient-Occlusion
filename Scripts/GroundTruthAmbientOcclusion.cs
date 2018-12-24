@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using UnityEngine.Rendering;
 using System.Collections.Generic;
@@ -61,7 +61,7 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
 
     [Range(1, 5)]
     [SerializeField]
-    float TemporalScale = 1;
+    float TemporalScale = 1.25f;
 
     [Range(0, 1)]
     [SerializeField]
@@ -90,6 +90,7 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
     private Matrix4x4 Inverse_View_ProjectionMatrix;
     private Matrix4x4 worldToCameraMatrix;
 
+
     ////// private
     private float HalfProjScale;
     private float TemporalOffsets;
@@ -97,7 +98,6 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
     private Vector2 CameraSize;
     private Vector2 RenderResolution;
     private Vector4 UVToView;
-    private Vector4 oneOverSize_Size;
     private Vector4 Target_TexelSize;
 
 
@@ -113,12 +113,9 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
 
     //////Shader Property
     ///Public
-    private static int _ProjectionMatrix_ID = Shader.PropertyToID("_ProjectionMatrix");
-    private static int _LastFrameViewProjectionMatrix_ID = Shader.PropertyToID("_LastFrameViewProjectionMatrix");
-    private static int _View_ProjectionMatrix_ID = Shader.PropertyToID("_View_ProjectionMatrix");
-    private static int _Inverse_View_ProjectionMatrix_ID = Shader.PropertyToID("_Inverse_View_ProjectionMatrix");
     private static int _WorldToCameraMatrix_ID = Shader.PropertyToID("_WorldToCameraMatrix");
     private static int _CameraToWorldMatrix_ID = Shader.PropertyToID("_CameraToWorldMatrix");
+    private static int _Inverse_View_ProjectionMatrix_ID = Shader.PropertyToID("_Inverse_View_ProjectionMatrix");
 
 
     private static int _AO_DirSampler_ID = Shader.PropertyToID("_AO_DirSampler");
@@ -216,14 +213,12 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
     {
         //----------------------------------------------------------------------------------
         worldToCameraMatrix = RenderCamera.worldToCameraMatrix;
+        projectionMatrix = GL.GetGPUProjectionMatrix(RenderCamera.projectionMatrix, false);
+        View_ProjectionMatrix = projectionMatrix * worldToCameraMatrix;
+
         GTAOMaterial.SetMatrix(_WorldToCameraMatrix_ID, worldToCameraMatrix);
         GTAOMaterial.SetMatrix(_CameraToWorldMatrix_ID, worldToCameraMatrix.inverse);
-        projectionMatrix = GL.GetGPUProjectionMatrix(RenderCamera.projectionMatrix, false);
-        GTAOMaterial.SetMatrix(_ProjectionMatrix_ID, projectionMatrix);
-        View_ProjectionMatrix = projectionMatrix * worldToCameraMatrix;
-        GTAOMaterial.SetMatrix(_View_ProjectionMatrix_ID, View_ProjectionMatrix);
         GTAOMaterial.SetMatrix(_Inverse_View_ProjectionMatrix_ID, View_ProjectionMatrix.inverse);
-        GTAOMaterial.SetMatrix(_LastFrameViewProjectionMatrix_ID, LastFrameViewProjectionMatrix);
 
         //----------------------------------------------------------------------------------
         GTAOMaterial.SetFloat(_AO_DirSampler_ID, DirSampler);
@@ -245,13 +240,12 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
         GTAOMaterial.SetVector(_AO_UVToView_ID, new Vector4(2 * invFocalLen.x, 2 * invFocalLen.y, -1 * invFocalLen.x, -1 * invFocalLen.y));
 
         //----------------------------------------------------------------------------------
-        float projScale;
-        projScale = (float)RenderResolution.y / (Mathf.Tan(fovRad * 0.5f) * 2) * 0.5f;
+        float projScale = (float)RenderResolution.y / (Mathf.Tan(fovRad * 0.5f) * 2) * 0.5f;
         GTAOMaterial.SetFloat(_AO_HalfProjScale_ID, projScale);
 
         //----------------------------------------------------------------------------------
-        oneOverSize_Size = new Vector4(1 / (float)RenderResolution.x, 1 / (float)RenderResolution.y, (float)RenderResolution.x, (float)RenderResolution.y);
-        GTAOMaterial.SetVector(_AO_RT_TexelSize_ID, oneOverSize_Size);
+        Target_TexelSize = new Vector4(1 / (float)RenderResolution.x, 1 / (float)RenderResolution.y, (float)RenderResolution.x, (float)RenderResolution.y);
+        GTAOMaterial.SetVector(_AO_RT_TexelSize_ID, Target_TexelSize);
 
         //----------------------------------------------------------------------------------
         float temporalRotation = m_temporalRotations[m_sampleStep % 6];
@@ -324,3 +318,4 @@ public class GroundTruthAmbientOcclusion : MonoBehaviour {
     }
 
 }
+
