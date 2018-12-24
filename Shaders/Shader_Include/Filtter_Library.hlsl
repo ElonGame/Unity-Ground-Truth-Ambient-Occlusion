@@ -293,9 +293,9 @@ inline void ResolverAABB(sampler2D currColor, half Sharpness, half ExposureScale
         minColor = min(minColor, MiddleCenter);
         maxColor = max(maxColor, MiddleCenter);
     #endif
+}
 
     //half4 corners = 4 * (TopLeft + BottomRight) - 2 * filterColor;
     //filterColor += (filterColor - (corners * 0.166667)) * 2.718282 * (Sharpness * 0.25);
-}
-
+    
 #endif
