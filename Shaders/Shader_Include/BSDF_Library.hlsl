@@ -171,24 +171,31 @@ float3 Diffuse_Lambert(float3 DiffuseColor)
 	return DiffuseColor * (1 / PI);
 }
 
+half Diffuse_Burley_NoPi(half LoH, half NoL, half NoV, half Roughness)
+{
+	Roughness = pow4(Roughness);
+	half EnergyBias = lerp(0, 0.5, Roughness);
+	half EnergyFactor = lerp(1, 1 / 0.662, Roughness);
+	half F90 = EnergyBias + 2 * pow2(LoH) * Roughness;
+	half lightScatter = F_Schlick(1, F90, NoL);
+	half viewScatter = F_Schlick(1, F90, NoV);
+	return lightScatter * viewScatter * EnergyFactor;
+}
+
+/*
 float3 Diffuse_Burley(float LoH, float NoL, float NoV, float3 DiffuseColor, float Roughness)
 {
 	Roughness = pow4(Roughness);
 	half FD90 = 0.5 + 2 * pow2(LoH) * Roughness;
-	float FdV = 1 + (FD90 - 1) * pow5(1 - NoL);
-	float FdL = 1 + (FD90 - 1) * pow5(1 - NoV);
-	return ((DiffuseColor* Inv_PI) * FdV * FdL);
+	float viewScatter = 1 + (FD90 - 1) * pow5(1 - NoL);
+	float lightScatter = 1 + (FD90 - 1) * pow5(1 - NoV);
+	return ((DiffuseColor * Inv_PI) * viewScatter * lightScatter);
 }
+*/
 
-float3 Diffuse_Burley_Normalize(float LoH, float NoL, float NoV, half3 DiffuseColor, float Roughness)
+float3 Diffuse_Burley(float LoH, float NoL, float NoV, half3 DiffuseColor, float Roughness)
 {
-	half linearRoughness = pow4(Roughness);
-	float energyBias = lerp(0, 0.5, linearRoughness);
-	float energyFactor = lerp(1, 1 / 0.662, linearRoughness);
-	float F90 = energyBias + 2 * pow2(LoH) * linearRoughness;
-	float3 lightScatter = F_Schlick(1, F90, NoL);
-	float3 viewScatter = F_Schlick(1, F90, NoV);
-	return ((lightScatter * viewScatter * energyFactor) / PI) * DiffuseColor;
+	return (Diffuse_Burley_NoPi(LoH, NoL, NoV, Roughness) * Inv_PI) * DiffuseColor;
 }
 
 float3 Diffuse_OrenNayar(float NoV, float NoL, float VoH, float3 DiffuseColor, float Roughness)
